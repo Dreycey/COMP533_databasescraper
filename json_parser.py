@@ -1,6 +1,9 @@
 import json 
 import sys
+# non-standard libs
 import pandas as pd
+import requests
+import shutil
 
 """
 This is a parsing script made for parsing through files
@@ -67,6 +70,31 @@ def make_postgres_database(key_value_list):
             document_dict[k_val] = '{' + new_val + '}'
     return document_dict
 
+# function for scraping the images given URL and output
+def scrape_image_given_link(image_url, outputfile)
+    """
+    This function takes in an image URL and saves the image
+    locally. This can be used to scrape the images for a 
+    given input. 
+
+    INPUT: image URL and path to saved file. 
+
+    OUTPUT: path to saved file. But more importantly,
+            the image is saved to that destination. 
+    """
+
+    # Open the url image, set stream to True, this will return the stream content.
+    resp = requests.get(image_url, stream=True)
+    # Open a local file with wb ( write binary ) permission.
+    local_file = open(outputfile, 'wb')
+    # Set decode_content value to True, otherwise the downloaded image file's size will be zero.
+    resp.raw.decode_content = True
+    # Copy the response stream raw data to local image file.
+    shutil.copyfileobj(resp.raw, local_file)
+    # Remove the image url response object.
+    ## not sure this is needed
+
+
 def main():
     # import the json file
     df = pd.read_json(sys.argv[1], lines=True)
@@ -98,5 +126,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
