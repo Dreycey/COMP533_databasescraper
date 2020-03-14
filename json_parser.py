@@ -71,7 +71,7 @@ def make_postgres_database(key_value_list):
     return document_dict
 
 # function for scraping the images given URL and output
-def scrape_image_given_link(image_url, outputfile)
+def scrape_image_given_link(image_url, outputfile):
     """
     This function takes in an image URL and saves the image
     locally. This can be used to scrape the images for a 
@@ -94,35 +94,48 @@ def scrape_image_given_link(image_url, outputfile)
     # Remove the image url response object.
     ## not sure this is needed
 
+def grab_sub_information(pandas_dataframe, column_name):
+    """
+    This function grabs a nested json attribute and
+    unpacks all of the values, returning a dataframe
+    with all subvalues added into one row. It goes through
+    the entire data frame and does this row-by-row.
+
+    INPUT: dataframe with sub column to be parsed. 
+
+    OUTPUT: dataframe with sub columns all parsed. 
+    """
+    df2 = pd.DataFrame()
+    # grabbing sub information from "content"
+    if column_name in df:
+        for row in range(df.shape[0]):
+            temp_content_dict = dict(df.loc[row][column_name])
+            # getting output into a dict fmt
+            dict_fmt = list(grab_column_names(temp_content_dict))
+            # Outputing the postgres dictionary.
+            document_dict_in = make_postgres_database(dict_fmt)
+            df2_temp = pd.DataFrame([document_dict_in]) # [] around the dict makes it a row
+            # add temp to the full dataframe
+            if df2.shape[0] == 0:
+                df2 = df2_temp
+            else:
+                df2 = pd.concat([df2, df2_temp])
+    else:
+        print(f"WARNING: column name {column_name} isn't in input")
+    return df2;
+
 
 def main():
     # import the json file
     df = pd.read_json(sys.argv[1], lines=True)
-    df2 = pd.DataFrame()
-
-    # grabbing sub information from "content"
-    for row in range(df.shape[0]):
-        temp_content_dict = dict(df.loc[row]["content"])
-
-        # getting output into a dict fmt
-        dict_fmt = list(grab_column_names(temp_content_dict))
-
-        # Outputing the postgres dictionary.
-        document_dict_in = make_postgres_database(dict_fmt)
-        df2_temp = pd.DataFrame([document_dict_in]) # [] around the dict makes it a row
-        
-        # add temp to the full dataframe
-        if df2.shape[0] == 0:
-            df2 = df2_temp
-        else:
-            df2 = pd.concat([df2, df2_temp])
-
-        # grabbing either the keys or the values.
-        #print([dict_fmt[i] for i in range(0, len(dict_fmt), 2)])
-    
-    df = df.drop("content",axis=1)
-    df.to_csv(r'./righthere_2.csv')
-    df2.to_csv(r'./righthere.csv')
+    output_name = sys.argv[2]
+    # scrape through the sub attribute for 'content'
+    df2_ = grab_sub_information(df, "content") 
+    # save everything to csv
+    if "content" in df:
+        df = df.drop("content",axis=1)
+        df2_.to_csv(f'./{output_name}_content.csv')
+    df.to_csv(f'./{output_name}_main.csv')
 
 if __name__ == "__main__":
     main()
