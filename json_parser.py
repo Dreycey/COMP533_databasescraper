@@ -1,9 +1,12 @@
 import json 
 import sys
+from os import listdir
+from os.path import isfile, join
 # non-standard libs
 import pandas as pd
 import requests
 import shutil
+from tqdm import tqdm
 
 """
 This is a parsing script made for parsing through files
@@ -107,9 +110,9 @@ def grab_sub_information(pandas_dataframe, column_name):
     """
     df2 = pd.DataFrame()
     # grabbing sub information from "content"
-    if column_name in df:
-        for row in range(df.shape[0]):
-            temp_content_dict = dict(df.loc[row][column_name])
+    if column_name in pandas_dataframe:
+        for row in range(pandas_dataframe.shape[0]):
+            temp_content_dict = dict(pandas_dataframe.loc[row][column_name])
             # getting output into a dict fmt
             dict_fmt = list(grab_column_names(temp_content_dict))
             # Outputing the postgres dictionary.
@@ -124,18 +127,45 @@ def grab_sub_information(pandas_dataframe, column_name):
         print(f"WARNING: column name {column_name} isn't in input")
     return df2;
 
+def make_subbash(dataframe_in, output_shell_name):
+    """
+    This function takes in a dataframe and returns a 
+    bash script that can be used to build the postgres
+    database from the terminal. 
 
-def main():
-    # import the json file
-    df = pd.read_json(sys.argv[1], lines=True)
-    output_name = sys.argv[2]
-    # scrape through the sub attribute for 'content'
-    df2_ = grab_sub_information(df, "content") 
+    INPUT: dataframe and the output shell name
+
+    OUTPUT: bash script that can be used to build the database
+    """
+
+
+def main(directory_path):
+    subfiles = [join(directory_path, sub_file) for sub_file in 
+                listdir(directory_path) if isfile(join(directory_path, 
+                sub_file))]
+    main_df = pd.DataFrame()
+    main_df2 = pd.DataFrame()
+    print (f"Loading all of the files for the directory now")
+    for subfile_path in tqdm(subfiles):
+        # import the json file
+        df = pd.read_json(subfile_path, lines=True)
+        output_name = sys.argv[2]
+        # scrape through the sub attribute for 'content'
+        df2_temp = grab_sub_information(df, "content") 
+        # save file dataframes to the main df for the dir
+        main_df = pd.concat([main_df, df])
+        main_df2 = pd.concat([main_df2, df2_temp])
+   
+
+    # make the sub-bash script for psql
+    sub-bashscript_name = "db-maker.sh"
+    make-subbash(main_df, sub-bashscript_name)
+    make-subbash(main_df2, sub-bashscript_name)
     # save everything to csv
-    if "content" in df:
-        df = df.drop("content",axis=1)
-        df2_.to_csv(f'./{output_name}_content.csv')
-    df.to_csv(f'./{output_name}_main.csv')
+    if "content" in main_df:
+        main_df = main_df.drop("content",axis=1)
+        main_df2.to_csv(f'./{output_name}_content.csv')
+    main_df.to_csv(f'./{output_name}_main.csv')
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1])
