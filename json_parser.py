@@ -70,26 +70,30 @@ def make_postgres_database(key_value_list):
 def main():
     # import the json file
     df = pd.read_json(sys.argv[1], lines=True)
+    df2 = pd.DataFrame()
 
     # grabbing sub information from "content"
-    for row in range(1):#df.shape[0]):
+    for row in range(df.shape[0]):
         temp_content_dict = dict(df.loc[row]["content"])
-
-        #for output in keys:
-        #    print(temp_content_dict[output])
 
         # getting output into a dict fmt
         dict_fmt = list(grab_column_names(temp_content_dict))
 
         # Outputing the postgres dictionary.
         document_dict_in = make_postgres_database(dict_fmt)
-        df2 = pd.DataFrame([document_dict_in]) # [] around the dict makes it a row
-        print(df2)
+        df2_temp = pd.DataFrame([document_dict_in]) # [] around the dict makes it a row
+        
+        # add temp to the full dataframe
+        if df2.shape[0] == 0:
+            df2 = df2_temp
+        else:
+            df2 = pd.concat([df2, df2_temp])
 
         # grabbing either the keys or the values.
         #print([dict_fmt[i] for i in range(0, len(dict_fmt), 2)])
-
-
+    
+    df = df.drop("content",axis=1)
+    df.to_csv(r'./righthere_2.csv')
     df2.to_csv(r'./righthere.csv')
 
 if __name__ == "__main__":
