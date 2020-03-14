@@ -3,53 +3,23 @@ import sys
 import pandas as pd
 
 """
-input_file = open(sys.argv[1], 'r')
-for line in input_file.readlines():
-    y = dict(line)
-"""
-#y = json.load(json_file)
-"""
-for k, v in y.items():
-    print (k,v)
+This is a parsing script made for parsing through files
+that contain metadata for the Smithsonian OpenAccess.
 
-print (y['url'])
+INPUT: file with multiple JSON objects. 
+
+OUTPUT: .csv file that can be uploaded into postgres
 """
 
-df = pd.read_json(sys.argv[1], lines=True)
 
-# save the dataframe to csv
-#df.to_csv(r'./righthere.csv')
-
-# print the major columns of the JSON
-#for col in df.columns:
-#    print(col)
-
-
-# function used from https://stackoverflow.com/questions/46845464/cleaner-way-to-unpack-nested-dictionaries
-def extract_nested_values(it):
-    """
-    This function is used to conver a nested dictionary
-    into a list of values. 
-
-    INPUT: nested dictionary
-    OUT: A unpacked list
-    """
-
-    if isinstance(it, list):
-        for sub_it in it:
-            yield from extract_nested_values(sub_it)
-    elif isinstance(it, dict): 
-        for value in it.values():
-            yield from extract_nested_values(value)
-    else:
-        yield it
 
 # modified function to grab titles
+# modified from from https://stackoverflow.com/questions/46845464/cleaner-way-to-unpack-nested-dictionaries
 def grab_column_names(it, keyin=''):
     """
     Purpose is to to return the keys into a list.
 
-    IN: nestede dict
+    IN: nested dict
     OUT: list of the keys
     """
     if isinstance(it, list):
@@ -67,38 +37,62 @@ def grab_column_names(it, keyin=''):
         yield keyin
         yield it
 
-# grabbing sub information from "content"
-for row in range(1):#df.shape[0]):
-    temp_content_dict = dict(df.loc[row]["content"])
-    extract_nested_values(temp_content_dict)
+# store "content" into an unpack dictionary with multiple values
+# stored into a postgres array format. 
+# NOTE: this is NOT in a generalized format. Should turn into a 
+#       data structure that can be used in multiple databases. 
+#       This could be turned into a function with input being a 
+#       dictionary and the output being an input for different
+#       database types. Have flexibility here is key. 
+def make_postgres_database(key_value_list):
+    """
+    This function is used to make a dictionary format that
+    can be later used as input into a panda dataframe or 
+    for direct printing. 
+
+    INPUT: A list with [key_1, value_1, ..., key_n, value_n]
     
+    OUTPUT: dictionary with key duplicates storing values
+           compatable with the postgres array format. 
+    """
+    document_dict = {}
+    for index in range(0, len(key_value_list), 2):
+        k_val = key_value_list[index]
+        valu = key_value_list[index + 1]
+        if key_value_list[index] not in document_dict.keys():
+            document_dict[k_val] = valu
+        else:
+            cur_val = document_dict[k_val]
+            new_val = f"{cur_val.strip('{').strip('}')},{valu}"
+            document_dict[k_val] = '{' + new_val + '}'
+    return document_dict
+
+def main():
+    # import the json file
+    df = pd.read_json(sys.argv[1], lines=True)
+
+    # grabbing sub information from "content"
+    for row in range(1):#df.shape[0]):
+        temp_content_dict = dict(df.loc[row]["content"])
+
+        #for output in keys:
+        #    print(temp_content_dict[output])
+
+        # getting output into a dict fmt
+        dict_fmt = list(grab_column_names(temp_content_dict))
+
+        # Outputing the postgres dictionary.
+        document_dict_in = make_postgres_database(dict_fmt)
+        df2 = pd.DataFrame([document_dict_in]) # [] around the dict makes it a row
+        print(df2)
+
+        # grabbing either the keys or the values.
+        #print([dict_fmt[i] for i in range(0, len(dict_fmt), 2)])
 
 
-    #for output in keys:
-    #    print(temp_content_dict[output])
+    df2.to_csv(r'./righthere.csv')
+
+if __name__ == "__main__":
+    main()
 
 
-#print(list(extract_nested_values(temp_content_dict)))
-
-# getting output into a dict fmt
-dict_fmt = list(grab_column_names(temp_content_dict))
-
-document_dict = {}
-for index in range(0, len(dict_fmt), 2):
-    k_val = dict_fmt[index]
-    valu = dict_fmt[index + 1]
-    if dict_fmt[index] not in document_dict.keys():
-        document_dict[k_val] = valu
-    else:
-        cur_val = document_dict[k_val]
-        new_val = f"{cur_val.strip('{').strip('}')},{valu}"
-        document_dict[k_val] = '{' + new_val + '}'
-
-df2 = pd.DataFrame([document_dict])
-dict_fmt_2 = list(grab_column_names(document_dict))
-print ([dict_fmt_2[i] for i in range(1, len(dict_fmt_2), 2)])
-print (df2)
-#print (temp_content_dict)
-
-
-df2.to_csv(r'./righthere.csv')
