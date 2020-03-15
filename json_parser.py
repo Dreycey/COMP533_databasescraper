@@ -164,10 +164,10 @@ def make_subbash(dataframe_in, output_shell_name, table_name, csv_output_locatio
                 print ('PSQL varchar[100] ##############')
                 make_table_string = make_table_string + f"{df_k} text" 
         make_table_string = make_table_string + ","
-    make_table_string = make_table_string[:-1] + ")\""
+    make_table_string = make_table_string[:-1] + ")\";"
     # make the command for building the table
     build_table_command = f"psql -d $database -c \"\copy {table_name} FROM \
-'{csv_output_location}' DELIMITER ',' CSV\""
+'{csv_output_location}' DELIMITER ',' CSV\";"
     #####
     # Adding to the file
     #####
@@ -216,8 +216,8 @@ def main(directory_path, output_name, bash_out_name):
                      f'./{output_name}_content.csv')
     # save everything to csv
     if has_content_boolean:
-        main_df2.to_csv(f'./{output_name}_content.csv')
-    main_df.to_csv(f'./{output_name}_main.csv')
+        main_df2.to_csv(f'./{output_name}_content.csv', header=False)
+    main_df.to_csv(f'./{output_name}_main.csv', header=False)
 
 if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2], sys.argv[3])
