@@ -1,55 +1,33 @@
 import json 
 import sys
+import os
+from os import listdir
+from os.path import isfile, join
+# non-standard libs
 import pandas as pd
+import requests
+import shutil
+from tqdm import tqdm
+import numpy as np
 
 """
-input_file = open(sys.argv[1], 'r')
-for line in input_file.readlines():
-    y = dict(line)
-"""
-#y = json.load(json_file)
-"""
-for k, v in y.items():
-    print (k,v)
+This is a parsing script made for parsing through files
+that contain metadata for the Smithsonian OpenAccess.
 
-print (y['url'])
+INPUT: file with multiple JSON objects. 
+
+OUTPUT: .csv file that can be uploaded into postgres
 """
 
-df = pd.read_json(sys.argv[1], lines=True)
 
-# save the dataframe to csv
-#df.to_csv(r'./righthere.csv')
-
-# print the major columns of the JSON
-#for col in df.columns:
-#    print(col)
-
-
-# function used from https://stackoverflow.com/questions/46845464/cleaner-way-to-unpack-nested-dictionaries
-def extract_nested_values(it):
-    """
-    This function is used to conver a nested dictionary
-    into a list of values. 
-
-    INPUT: nested dictionary
-    OUT: A unpacked list
-    """
-
-    if isinstance(it, list):
-        for sub_it in it:
-            yield from extract_nested_values(sub_it)
-    elif isinstance(it, dict): 
-        for value in it.values():
-            yield from extract_nested_values(value)
-    else:
-        yield it
 
 # modified function to grab titles
+# modified from from https://stackoverflow.com/questions/46845464/cleaner-way-to-unpack-nested-dictionaries
 def grab_column_names(it, keyin=''):
     """
     Purpose is to to return the keys into a list.
 
-    IN: nestede dict
+    IN: nested dict
     OUT: list of the keys
     """
     if isinstance(it, list):
@@ -67,38 +45,179 @@ def grab_column_names(it, keyin=''):
         yield keyin
         yield it
 
-# grabbing sub information from "content"
-for row in range(1):#df.shape[0]):
-    temp_content_dict = dict(df.loc[row]["content"])
-    extract_nested_values(temp_content_dict)
+# store "content" into an unpack dictionary with multiple values
+# stored into a postgres array format. 
+# NOTE: this is NOT in a generalized format. Should turn into a 
+#       data structure that can be used in multiple databases. 
+#       This could be turned into a function with input being a 
+#       dictionary and the output being an input for different
+#       database types. Have flexibility here is key. 
+def make_postgres_database(key_value_list):
+    """
+    This function is used to make a dictionary format that
+    can be later used as input into a panda dataframe or 
+    for direct printing. 
+
+    INPUT: A list with [key_1, value_1, ..., key_n, value_n]
     
+    OUTPUT: dictionary with key duplicates storing values
+           compatable with the postgres array format. 
+    """
+    document_dict = {}
+    for index in range(0, len(key_value_list), 2):
+        k_val = key_value_list[index]
+        valu = key_value_list[index + 1]
+        if key_value_list[index] not in document_dict.keys():
+            document_dict[k_val] = valu
+        else:
+            cur_val = document_dict[k_val]
+            new_val = f"{cur_val.strip('array[').strip(']')},{valu}"
+            document_dict[k_val] = 'array[' + new_val + ']'
+    return document_dict
 
+# function for scraping the images given URL and output
+def scrape_image_given_link(image_url, outputfile):
+    """
+    This function takes in an image URL and saves the image
+    locally. This can be used to scrape the images for a 
+    given input. 
 
-    #for output in keys:
-    #    print(temp_content_dict[output])
+    INPUT: image URL and path to saved file. 
 
+    OUTPUT: path to saved file. But more importantly,
+            the image is saved to that destination. 
+    """
 
-#print(list(extract_nested_values(temp_content_dict)))
+    # Open the url image, set stream to True, this will return the stream content.
+    resp = requests.get(image_url, stream=True)
+    # Open a local file with wb ( write binary ) permission.
+    local_file = open(outputfile, 'wb')
+    # Set decode_content value to True, otherwise the downloaded image file's size will be zero.
+    resp.raw.decode_content = True
+    # Copy the response stream raw data to local image file.
+    shutil.copyfileobj(resp.raw, local_file)
+    # Remove the image url response object.
+    ## not sure this is needed
 
-# getting output into a dict fmt
-dict_fmt = list(grab_column_names(temp_content_dict))
+def grab_sub_information(pandas_dataframe, column_name):
+    """
+    This function grabs a nested json attribute and
+    unpacks all of the values, returning a dataframe
+    with all subvalues added into one row. It goes through
+    the entire data frame and does this row-by-row.
 
-document_dict = {}
-for index in range(0, len(dict_fmt), 2):
-    k_val = dict_fmt[index]
-    valu = dict_fmt[index + 1]
-    if dict_fmt[index] not in document_dict.keys():
-        document_dict[k_val] = valu
+    INPUT: dataframe with sub column to be parsed. 
+
+    OUTPUT: dataframe with sub columns all parsed. 
+    """
+    df2 = pd.DataFrame()
+    # grabbing sub information from "content"
+    if column_name in pandas_dataframe:
+        for row in range(pandas_dataframe.shape[0]):
+            temp_content_dict = dict(pandas_dataframe.loc[row][column_name])
+            # getting output into a dict fmt
+            dict_fmt = list(grab_column_names(temp_content_dict))
+            # Outputing the postgres dictionary.
+            document_dict_in = make_postgres_database(dict_fmt)
+            df2_temp = pd.DataFrame([document_dict_in]) # [] around the dict makes it a row
+            # add temp to the full dataframe
+            if df2.shape[0] == 0:
+                df2 = df2_temp
+            else:
+                df2 = pd.concat([df2, df2_temp])
     else:
-        cur_val = document_dict[k_val]
-        new_val = f"{cur_val.strip('{').strip('}')},{valu}"
-        document_dict[k_val] = '{' + new_val + '}'
+        print(f"WARNING: column name {column_name} isn't in input")
+    return df2;
 
-df2 = pd.DataFrame([document_dict])
-dict_fmt_2 = list(grab_column_names(document_dict))
-print ([dict_fmt_2[i] for i in range(1, len(dict_fmt_2), 2)])
-print (df2)
-#print (temp_content_dict)
+def make_subbash(dataframe_in, output_shell_name, table_name, csv_output_location):
+    """
+    This function takes in a dataframe and returns a 
+    bash script that can be used to build the postgres
+    database from the terminal. 
 
+    INPUT: dataframe and the output shell name
 
-df2.to_csv(r'./righthere.csv')
+    OUTPUT: bash script that can be used to build the database
+    """
+    # evaluate information about the dataframe
+    df_keys = dataframe_in.keys()
+    make_table_string = f'psql -d $database -c "CREATE TABLE {table_name}('
+    for df_k in df_keys:
+        df_v = dataframe_in[dataframe_in[df_k].notnull()][df_k]
+        df_v = df_v.sample(1).values[0]
+        print(f"now looking at {df_k}, {type(df_v)}") 
+        df_k = df_k.strip(',')
+        if isinstance(df_v, np.int64):
+            print('PSQL INT #####################')
+            make_table_string = make_table_string + f"{df_k} int"
+        elif isinstance(df_v, np.datetime64):
+            print('PSQL dataframe #################')
+            make_table_string = make_table_string + f"{df_k} timestamp"
+        elif isinstance(df_v, np.float64):
+            print('PSQL float #################')
+            make_table_string = make_table_string + f"{df_k} float"
+        elif isinstance(df_v, str):
+            if '{' in df_v:
+                print ('PSQL array ##############')
+                make_table_string = make_table_string + f"{df_k} text[]" 
+            else:
+                print ('PSQL varchar[100] ##############')
+                make_table_string = make_table_string + f"{df_k} text" 
+        make_table_string = make_table_string + ","
+    make_table_string = make_table_string[:-1] + ")\";"
+    # make the command for building the table
+    build_table_command = f"psql -d $database -c \"\copy {table_name} FROM \
+'{csv_output_location}' DELIMITER ',' CSV\";"
+    #####
+    # Adding to the file
+    #####
+    # add the table to the new bash script
+    # kludge: pass pointer to this file to keep from having to reopen
+    newbashfile = open(output_shell_name, 'a')
+    newbashfile.write('\n')
+    newbashfile.write(f'# information for {table_name}')
+    newbashfile.write('\n\n')
+    newbashfile.write(make_table_string)
+    newbashfile.write('\n\n')
+    newbashfile.write(build_table_command)
+    newbashfile.write('\n')
+    newbashfile.close()
+
+def main(directory_path, output_name, bash_out_name):
+    subfiles = [join(directory_path, sub_file) for sub_file in
+                listdir(directory_path) if isfile(join(directory_path,
+                sub_file))]
+    main_df = pd.DataFrame()
+    main_df2 = pd.DataFrame()
+    print (f"Loading all of the files for the directory now")
+    for subfile_path in tqdm(subfiles):
+        # import the json file
+        df = pd.read_json(subfile_path, lines=True)
+        # scrape through the sub attribute for 'content'
+        df2_temp = grab_sub_information(df, "content")
+        # save file dataframes to the main df for the dir
+        main_df = pd.concat([main_df, df])
+        main_df2 = pd.concat([main_df2, df2_temp])
+    # drop the "content" attribute from the _main table
+    has_content_boolean = False #initializing
+    if "content" in main_df:
+        main_df = main_df.drop("content",axis=1)
+        has_content_boolean = True
+    # make the sub-bash script for psql
+    base_name_folder = os.path.basename(os.path.normpath(output_name))
+    make_subbash(main_df,
+                 bash_out_name,
+                 f'{base_name_folder}_main',
+                 f'./{output_name}_main.csv')
+    if has_content_boolean:
+        make_subbash(main_df2,
+                     bash_out_name,
+                     f'{base_name_folder}_content',
+                     f'./{output_name}_content.csv')
+    # save everything to csv
+    if has_content_boolean:
+        main_df2.to_csv(f'./{output_name}_content.csv', header=False)
+    main_df.to_csv(f'./{output_name}_main.csv', header=False)
+
+if __name__ == "__main__":
+    main(sys.argv[1], sys.argv[2], sys.argv[3])
