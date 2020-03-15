@@ -2,11 +2,19 @@
 #
 # build postgres DB ussing simthsonian OpenAccess data
 
+# variables
+subbash_script_name='DB_make.sh' # name ofoutput bash script, make sure to add $database
+
 # Download OpenAcess data
 if [ ! -d 'OpenAccess' ]
 then
     echo "Donloading data, please wait.. \n"
     git clone https://github.com/Smithsonian/OpenAccess;
+    #unzip files within the sub directories
+    for subdirectory in OpenAccess/metadata/objects/*;
+    do 
+        bzip2 -d $subdirectory/*;
+    done;
 fi;
 
 # make storage area for the input to poostgres
@@ -26,13 +34,12 @@ do
     then    
         echo Now working on $subdir_name;
         mkdir $output_dir;
-        python json_parser.py $subdirectory $output_dir/$subdir_name;
+        python json_parser.py $subdirectory $output_dir/$subdir_name $subbash_script_name;
     fi;
 done;
 
 # build the database running the subscript made above
-subbash_script_name='tehe' 
-if [ ! -f 'postgress_DB' ]
+if [ ! -f $subbash_script_name ]
 then
     echo ERROR: No bash script found matching $subbash_script_name;
 else
