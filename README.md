@@ -11,6 +11,11 @@ Below are the instructions for how to run everything in the repo. Everything can
 essentially be ran with one command once the postgress database has been
 created.
 
+## future features
+
+* image scraper is in the code, not currently used. 
+* ability to make import for other database types
+
 ## Build the postgresDB
 The first thing you need to do before using the master bash script is build a
 database. This is the most convienent way to build the database: 
