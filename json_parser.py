@@ -71,8 +71,8 @@ def make_postgres_database(key_value_list):
             document_dict[k_val] = valu
         else:
             cur_val = document_dict[k_val]
-            new_val = f"{cur_val.strip('{').strip('}')},{valu}"
-            document_dict[k_val] = '{' + new_val + '}'
+            new_val = f"{cur_val.strip('array[').strip(']')},{valu}"
+            document_dict[k_val] = 'array[' + new_val + ']'
     return document_dict
 
 # function for scraping the images given URL and output
@@ -164,10 +164,10 @@ def make_subbash(dataframe_in, output_shell_name, table_name, csv_output_locatio
                 print ('PSQL varchar[100] ##############')
                 make_table_string = make_table_string + f"{df_k} text" 
         make_table_string = make_table_string + ","
-    make_table_string = make_table_string[:-1] + ")"
+    make_table_string = make_table_string[:-1] + ")\""
     # make the command for building the table
     build_table_command = f"psql -d $database -c \"\copy {table_name} FROM \
-    '{csv_output_location}' DELIMITER ',' CSV\""
+'{csv_output_location}' DELIMITER ',' CSV\""
     #####
     # Adding to the file
     #####
@@ -175,11 +175,13 @@ def make_subbash(dataframe_in, output_shell_name, table_name, csv_output_locatio
     # kludge: pass pointer to this file to keep from having to reopen
     newbashfile = open(output_shell_name, 'a')
     newbashfile.write('\n')
+    newbashfile.write(f'# information for {table_name}')
+    newbashfile.write('\n\n')
     newbashfile.write(make_table_string)
+    newbashfile.write('\n\n')
+    newbashfile.write(build_table_command)
     newbashfile.write('\n')
     newbashfile.close()
-    # add commands for building the table
-
 
 def main(directory_path, output_name, bash_out_name):
     subfiles = [join(directory_path, sub_file) for sub_file in
