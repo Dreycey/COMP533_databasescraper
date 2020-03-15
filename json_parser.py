@@ -1,5 +1,6 @@
 import json 
 import sys
+import os
 from os import listdir
 from os.path import isfile, join
 # non-standard libs
@@ -7,6 +8,7 @@ import pandas as pd
 import requests
 import shutil
 from tqdm import tqdm
+import numpy as np
 
 """
 This is a parsing script made for parsing through files
@@ -127,7 +129,7 @@ def grab_sub_information(pandas_dataframe, column_name):
         print(f"WARNING: column name {column_name} isn't in input")
     return df2;
 
-def make_subbash(dataframe_in, output_shell_name):
+def make_subbash(dataframe_in, output_shell_name, table_name, csv_output_location):
     """
     This function takes in a dataframe and returns a 
     bash script that can be used to build the postgres
@@ -137,11 +139,51 @@ def make_subbash(dataframe_in, output_shell_name):
 
     OUTPUT: bash script that can be used to build the database
     """
+    # evaluate information about the dataframe
+    df_keys = dataframe_in.keys()
+    make_table_string = f'psql -d $database -c "CREATE TABLE {table_name}('
+    for df_k in df_keys:
+        df_v = dataframe_in[dataframe_in[df_k].notnull()][df_k]
+        df_v = df_v.sample(1).values[0]
+        print(f"now looking at {df_k}, {type(df_v)}") 
+        df_k = df_k.strip(',')
+        if isinstance(df_v, np.int64):
+            print('PSQL INT #####################')
+            make_table_string = make_table_string + f"{df_k} int"
+        elif isinstance(df_v, np.datetime64):
+            print('PSQL dataframe #################')
+            make_table_string = make_table_string + f"{df_k} timestamp"
+        elif isinstance(df_v, np.float64):
+            print('PSQL float #################')
+            make_table_string = make_table_string + f"{df_k} float"
+        elif isinstance(df_v, str):
+            if '{' in df_v:
+                print ('PSQL array ##############')
+                make_table_string = make_table_string + f"{df_k} text[]" 
+            else:
+                print ('PSQL varchar[100] ##############')
+                make_table_string = make_table_string + f"{df_k} text" 
+        make_table_string = make_table_string + ","
+    make_table_string = make_table_string[:-1] + ")"
+    # make the command for building the table
+    build_table_command = f"psql -d $database -c \"\copy {table_name} FROM \
+    '{csv_output_location}' DELIMITER ',' CSV\""
+    #####
+    # Adding to the file
+    #####
+    # add the table to the new bash script
+    # kludge: pass pointer to this file to keep from having to reopen
+    newbashfile = open(output_shell_name, 'a')
+    newbashfile.write('\n')
+    newbashfile.write(make_table_string)
+    newbashfile.write('\n')
+    newbashfile.close()
+    # add commands for building the table
 
 
-def main(directory_path):
-    subfiles = [join(directory_path, sub_file) for sub_file in 
-                listdir(directory_path) if isfile(join(directory_path, 
+def main(directory_path, output_name, bash_out_name):
+    subfiles = [join(directory_path, sub_file) for sub_file in
+                listdir(directory_path) if isfile(join(directory_path,
                 sub_file))]
     main_df = pd.DataFrame()
     main_df2 = pd.DataFrame()
@@ -149,23 +191,31 @@ def main(directory_path):
     for subfile_path in tqdm(subfiles):
         # import the json file
         df = pd.read_json(subfile_path, lines=True)
-        output_name = sys.argv[2]
         # scrape through the sub attribute for 'content'
-        df2_temp = grab_sub_information(df, "content") 
+        df2_temp = grab_sub_information(df, "content")
         # save file dataframes to the main df for the dir
         main_df = pd.concat([main_df, df])
         main_df2 = pd.concat([main_df2, df2_temp])
-   
-
-    # make the sub-bash script for psql
-    sub-bashscript_name = "db-maker.sh"
-    make-subbash(main_df, sub-bashscript_name)
-    make-subbash(main_df2, sub-bashscript_name)
-    # save everything to csv
+    # drop the "content" attribute from the _main table
+    has_content_boolean = False #initializing
     if "content" in main_df:
         main_df = main_df.drop("content",axis=1)
+        has_content_boolean = True
+    # make the sub-bash script for psql
+    base_name_folder = os.path.basename(os.path.normpath(output_name))
+    make_subbash(main_df,
+                 bash_out_name,
+                 f'{base_name_folder}_main',
+                 f'./{output_name}_main.csv')
+    if has_content_boolean:
+        make_subbash(main_df2,
+                     bash_out_name,
+                     f'{base_name_folder}_content',
+                     f'./{output_name}_content.csv')
+    # save everything to csv
+    if has_content_boolean:
         main_df2.to_csv(f'./{output_name}_content.csv')
     main_df.to_csv(f'./{output_name}_main.csv')
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    main(sys.argv[1], sys.argv[2], sys.argv[3])
