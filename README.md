@@ -16,6 +16,17 @@ created.
 * image scraper is in the code, not currently used. 
 * ability to make import for other database types
 
+## Database Schema
+
+Below is a rough outline of the database schema as it currently stands. There
+are several metadata warehouses that the smithsonian uses for OpenAccess. Here,
+these are split into 2 tables each: (1) main; and (2) content. The main table
+conosist of the primary metadata, and the contect table has more descriptivee
+metadata, such as location, geolocation, deescriptions, ect.
+
+![Database Schema](DB_schema.png)
+
+# How to build the database
 ## Build the postgresDB
 The first thing you need to do before using the master bash script is build a
 database. This is the most convienent way to build the database: 
